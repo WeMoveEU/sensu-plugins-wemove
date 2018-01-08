@@ -9,6 +9,11 @@ class CheckSpeakoutLog < Sensu::Plugin::Check::CLI
          description: 'Log file to parse',
          required: true
 
+  option :ignore,
+	 short: '-i REGEXP',
+	 long: '--ignore REGEXP',
+	 description: 'Pattern of log entries to ignore'
+
   option :warning,
          description: 'Warning threshold, in number of identical errors',
          short: '-w THRESHOLD',
@@ -55,10 +60,11 @@ class CheckSpeakoutLog < Sensu::Plugin::Check::CLI
   def parse_log(path)
     result = {}
     regexp = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} -([^-]*)-.*/
+    ignore = if config[:ignore].nil? then nil else Regexp.new(config[:ignore]) end
 
     File.open path do |file|
       file.each_line do |line|
-	if m = regexp.match(line)
+	if m = regexp.match(line) and (ignore.nil? or not(ignore =~ line))
 	  error = m.captures.first.strip
 	  details = result[error] || { count: 0 }
 	  details[:count] += 1
