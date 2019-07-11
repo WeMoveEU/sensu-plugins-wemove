@@ -4,6 +4,7 @@ require 'sensu-plugin/check/cli'
 require 'mysql'
 require 'socket'
 require 'inifile'
+require 'time'
 
 class CheckCiviCRMMailingSpeed < Sensu::Plugin::Check::CLI
   option :host,
@@ -66,7 +67,7 @@ class CheckCiviCRMMailingSpeed < Sensu::Plugin::Check::CLI
       db_pass = config[:password]
     end
 
-    query = "SELECT COUNT(DISTINCT j.mailing_id) AS running, COUNT(*) * 60 AS speed "\
+    query = "SELECT COUNT(DISTINCT j.mailing_id) AS running, COUNT(DISTINCT j.id) AS jobs, COUNT(*) * 60 AS speed, MIN(start_date) AS min_start_date "\
       "FROM civicrm_mailing_job j "\
       "JOIN civicrm_mailing_event_queue q ON q.job_id=j.id "\
       "JOIN civicrm_mailing_event_delivered d ON d.event_queue_id=q.id "\
@@ -76,15 +77,17 @@ class CheckCiviCRMMailingSpeed < Sensu::Plugin::Check::CLI
       mysql = Mysql.new(config[:host], db_user, db_pass, config[:database], config[:port], config[:socket])
       result = mysql.query(query).fetch_row
       running = result[0].to_i
-      speed = result[1].to_i
+      jobs = result[1].to_i
+      speed = result[2].to_i
+      min_start_date = result[3].nil? ? nil : (Time.parse result[3])
     rescue => e
       critical e.message
     end
 
     mysql.close if mysql
 
-    unless running == 0
-      message = "Current mailing speed is #{speed} emails/hour (#{running} mailings running)"
+    unless running == 0 or min_start_date > (Time.now - 300)
+      message = "Current mailing speed is #{speed} emails/hour (#{running} mailings running as #{jobs} jobs)"
       if !config[:critical].nil? and speed <= config[:critical].to_i
         critical(message)
       elsif !config[:warning].nil? and speed <= config[:warning].to_i
