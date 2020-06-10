@@ -11,7 +11,7 @@ if [ $# -ne 1 ]; then
  exit $STATE_UNKNOWN
 fi
 
-(cd $1 && git status | grep "nothing to commit, working directory clean" > /dev/null 2>&1)
+(cd $1 && git status | grep "nothing to commit" > /dev/null 2>&1)
 if [ $? -eq 0 ]; then
 	echo "OK: nothing to commit"	
 	exit $STATE_OK
